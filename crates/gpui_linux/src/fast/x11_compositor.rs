@@ -20,7 +20,7 @@
 use gpui_util::ResultExt as _;
 use log::Level;
 use x11rb::{
-    connection::Connection,
+    connection::{Connection, RequestConnection},
     protocol::xproto::{self, AtomEnum, ConnectionExt as _},
     xcb_ffi::XCBConnection,
 };
@@ -33,6 +33,18 @@ use crate::linux::get_reply;
 /// matching upstream's parameter; the screen number is recovered from the
 /// connection setup.
 pub(crate) fn compositor_present(xcb_connection: &XCBConnection, root: xproto::Window) -> bool {
+    // XWayland is always composited: the Wayland compositor blends every X11
+    // surface, but may not claim the _NET_WM_CM_S selection. Same test
+    // fast::composition::x11 uses for the overlay window.
+    if xcb_connection
+        .extension_information("XWAYLAND")
+        .log_with_level(Level::Debug)
+        .flatten()
+        .is_some()
+    {
+        return true;
+    }
+
     let screen_num = xcb_connection
         .setup()
         .roots
